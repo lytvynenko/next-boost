@@ -1,12 +1,10 @@
 import { IncomingMessage } from 'http'
-import { gzipSync } from 'zlib'
-
 import { lock, send, serveCache, unlock } from './cache-manager'
 import { forMetrics, Metrics, serveMetrics } from './metrics'
 import { encodePayload } from './payload'
 import Renderer, { InitArgs } from './renderer'
 import { CacheAdapter, HandlerConfig, WrappedHandler } from './types'
-import { filterUrl, isZipped, log, mergeConfig, serve } from './utils'
+import { filterUrl, isZipped, log, mergeConfig, serve, compressor } from './utils'
 
 function matchRules(conf: HandlerConfig, req: IncomingMessage) {
   const err = ['GET', 'HEAD'].indexOf(req.method ?? '') === -1
@@ -36,6 +34,7 @@ function matchRules(conf: HandlerConfig, req: IncomingMessage) {
  * @returns a request listener to use in http server
  */
 const wrap: WrappedHandler = (cache, conf, renderer, next, metrics) => {
+  const logger = conf.logger || log
   return async (req, res) => {
     if (conf.metrics && forMetrics(req)) return serveMetrics(metrics, res)
 
@@ -56,11 +55,11 @@ const wrap: WrappedHandler = (cache, conf, renderer, next, metrics) => {
     metrics.inc(state.status)
 
     if (state.status === 'stale' || state.status === 'hit' || state.status === 'fulfill') {
-      send(state.payload, res)
-      if (!conf.quiet) log(start, state.status, req.url) // record time for stale and hit
+      send(state.payload, res, conf.compression)
+      if (!conf.quiet) logger(start, state.status, req.url) // record time for stale and hit
       if (state.status !== 'stale') return // stop here
     } else if (state.status === 'timeout') {
-      send({ body: null, headers: null }, res)
+      send({ body: null, headers: null }, res, conf.compression)
       return // prevent adding pressure to server
     }
 
@@ -74,10 +73,12 @@ const wrap: WrappedHandler = (cache, conf, renderer, next, metrics) => {
       // stale has been served
       if (state.status !== 'stale') serve(res, rv)
       // when in stale, there will 2 log output. The latter is the rendering time on server
-      if (!conf.quiet) log(start, state.status, req.url)
+      if (!conf.quiet) logger(start, state.status, req.url)
       if (rv.statusCode === 200) {
-        // save gzipped data
-        const payload = { headers: rv.headers, body: isZipped(rv.headers) ? body : gzipSync(body) }
+        const payload = {
+          headers: rv.headers,
+          body: isZipped(rv.headers) ? body : compressor(conf.compression)(body),
+        }
         await cache.set('payload:' + key, encodePayload(payload), ttl)
       }
     } catch (e) {

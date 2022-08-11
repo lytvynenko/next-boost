@@ -1,4 +1,4 @@
-import { gzipSync } from 'zlib'
+import { gzipSync, brotliCompressSync } from 'zlib'
 
 import { RequestListener } from '../src/renderer'
 
@@ -13,6 +13,9 @@ export default async function init(): Promise<RequestListener> {
     } else if (req.url === '/hello-zip') {
       res.setHeader('content-encoding', 'gzip')
       res.write(gzipSync(Buffer.from('hello')))
+    } else if (req.url === '/hello-br') {
+      res.setHeader('content-encoding', 'br')
+      res.write(brotliCompressSync(Buffer.from('hello')))
     } else if (req.url === '/hello-304') {
       res.statusCode = 304
     } else if (req.url === '/hello-empty') {

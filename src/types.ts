@@ -30,6 +30,8 @@ export interface HandlerConfig {
   paramFilter?: ParamFilter
   cacheKey?: CacheKeyBuilder
   metrics?: boolean
+  compression?: 'gzip' | 'br' | 'disabled'
+  logger?: (hrTime: [number, number], status: string, url: string) => void
 }
 
 export interface URLCacheRule {

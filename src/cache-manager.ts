@@ -62,6 +62,7 @@ async function waitAndServe(key: string, cache: Cache): Promise<State> {
 export function send(
   payload: { body: Buffer | null; headers: Record<string, any> | null },
   res: ServerResponse,
+  compression = 'gzip',
 ) {
   const { body, headers } = payload
   if (!body) {
@@ -74,7 +75,7 @@ export function send(
   res.statusCode = 200
   res.removeHeader('transfer-encoding')
   res.setHeader('content-length', Buffer.byteLength(body))
-  res.setHeader('content-encoding', 'gzip')
+  if (compression !== 'disabled') res.setHeader('content-encoding', compression)
   const stream = new PassThrough()
   stream.pipe(res)
   stream.end(body)

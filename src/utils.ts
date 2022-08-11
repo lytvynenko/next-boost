@@ -4,7 +4,7 @@ import path from 'path'
 
 import { RenderResult } from './renderer'
 import { HandlerConfig, ParamFilter } from './types'
-
+import { gzipSync, brotliCompressSync } from 'zlib'
 function isZipped(headers: { [key: string]: any }): boolean {
   const field = headers['content-encoding']
   return typeof field === 'string' && field.includes('gzip')
@@ -64,4 +64,17 @@ async function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
 }
 
-export { isZipped, log, mergeConfig, sleep, serve, filterUrl }
+const compressor = (compression: HandlerConfig['compression']) => (data: Buffer) => {
+  switch (compression) {
+    case 'gzip':
+      return gzipSync(data)
+    case 'br':
+      return brotliCompressSync(data)
+    case 'disabled':
+      return data
+    default:
+      return gzipSync(data)
+  }
+}
+
+export { isZipped, log, mergeConfig, sleep, serve, filterUrl, compressor }
